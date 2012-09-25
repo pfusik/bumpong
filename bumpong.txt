@@ -1,0 +1,19 @@
+*** BUMPONG ***
+Game for two players
+
+First presented at WAP-NIAK 2012
+Warsaw, Poland
+
+Requires: 8-bit Atari (400/800/XL/XE)
+with 48k RAM and a good GTIA chip
+PAL/NTSC compatible
+Recommended: two joysticks
+
+Design and programming
+by Piotr '0xF' Fusik <fox@scene.pl>
+
+Music by Lukasz 'X-Ray' Sychowicz
+<xray@scene.pl>
+
+For greetings, read the scroll!
+

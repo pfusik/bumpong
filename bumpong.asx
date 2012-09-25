@@ -1,0 +1,382 @@
+bumpcode	equ	$4e00	; < $5500
+bumpcode2	equ	bumpcode+$2a6c
+light	equ	$a300	; $1100
+screen	equ	$b400	; $780
+
+src	equ	$80	; 2
+dest	equ	$82	; 2
+
+col	equ	$84
+row	equ	$85
+hi	equ	$86
+lo	equ	$87
+cnt	equ	$88
+
+hi_left	equ	$8c
+hi_right	equ	$8d
+lo_left	equ	$8e
+lo_right	equ	$8f
+y2	equ	$90
+
+clock	equ	20
+ball_x	equ	$58	; 2
+ball_y	equ	$5a	; 2
+ball_dx	equ	$5c
+ball_dy	equ	$5e
+light_ptrs	equ	$60	; 80*2
+
+	org	$3400
+bumpmap
+	ins	'bumpmap.gr9'
+	ins	'bumpmap.gr9',-40
+status_line
+	dta	d'      bumpong       '
+scroll_text
+:48	dta	d' '
+	dta	d'Game for two players                        '
+	dta	d'Use joysticks                               '
+	dta	d'Press Start or Fire                         '
+	dta	d'If you cannot find joysticks, use arrow keys and Select/Option            '
+	dta	d"Design and programming by Piotr '0xF' Fusik             "
+	dta	d"Music by Lukasz 'X-Ray' Sychowicz                       "
+	dta	d'First presented at WAP-NIAK 2012                        '
+	dta	d'Greetings to:  Agenda, LaResistance, Tristesse, Mad Team, SSG, Lamers, Sword Soft, MEC, Slight, Rumun, Sikor, Lewis, XXL, Jakub Husak, Kaz, TDC, Ramos, Marok, Mono, Drac030, Innuendo, Jellonek, PG, Joy, Bob!k, Henryk, Grzybson, Stryker, Xeen, Cosi, Cobra, Jubanka, Pet, Yerzmyey, rest of Taquart!'
+scroll_end
+:48	dta	d' '
+dl 
+	dta	$70,$70,$c6,a(status_line),$6f,a(screen),$0f
+:23	dta	$2f,$0f
+	dta	$52
+scroll_ptr
+	dta	a(scroll_text)
+	dta	$41,a(dl)
+
+main
+	jsr	bumpcode_create
+	jsr	light_create
+
+	sei
+	lda	20
+	cmp:req	20
+	mwa	#vblki	$222
+	mwa	#dli	$200
+	mva	#$22	^40
+	mva	#$c0	^4e
+	mwa	#dl	^42
+	ldx	#29
+	lda	#0
+	sta:rpl	^00,x-
+	mva	#$f	^17
+
+	mwa	#$2800	ball_x
+	mwa	#$3000	ball_y
+	mva	#$3f	ball_dx
+
+	jsr	ball_move
+	jsr	light_set
+
+demo_loop
+	lda	clock
+	cmp:req	clock
+	jsr	scroll_move
+	lda	clock
+	lsr	@
+	bcs	demo_loop
+	jsr	ball_bounce_x
+	jsr	ball_move
+	jsr	light_set
+	jmp	demo_loop
+
+vblki
+	inc	clock
+popa
+	pla:tay
+	pla:tax
+	pla:rti
+
+dli
+	pha
+	txa:pha
+	tya:pha
+	sta	^4a
+	mva	#13	^45
+	mva	#$43	^45
+	sta	^1b
+	lda	clock
+	lsr	@
+	sta	^4a
+	bcs	bumpcode_bottom
+	jsr	bumpcode
+	jmp	bumpcode_done
+bumpcode_bottom
+	jsr	bumpcode2
+bumpcode_done
+	lda	#$70
+	cmp:rne	^4b
+	mva	#1	^1b
+	jmp	popa
+
+ball_bounce_x
+	ldx	ball_x+1
+	lda	ball_dx
+	bpl	ball_bounce_x_right
+	cpx	#2
+	bpl	ball_bounce_x_no
+	bmi	ball_bounce_x_yes	; jmp
+ball_bounce_x_right
+	cpx	#78
+	bcc	ball_bounce_x_no
+ball_bounce_x_yes
+	eor	#$ff
+	add	#1
+	sta	ball_dx
+	mva	^2a	ball_dy
+ball_bounce_x_no
+
+ball_bounce_y
+	ldy	ball_y+1
+	lda	ball_dy
+	bpl	ball_bounce_y_bottom
+	cpy	#4
+	bpl	ball_bounce_y_no
+	bmi	ball_bounce_y_yes	; jmp
+ball_bounce_y_bottom
+	cpy	#92
+	bcc	ball_bounce_y_no
+ball_bounce_y_yes
+	eor	#$ff
+	add	#1
+	sta	ball_dy
+ball_bounce_y_no
+	rts
+
+ball_move
+	ldx	#2
+ball_move_1
+	lda	ball_dx,x
+:4	asl	@
+	add:sta	ball_x,x
+	php
+	lda	ball_dx,x
+:4	lsr	@
+	cmp	#8
+	scc:ora	#$f0
+	plp
+	adc:sta	ball_x+1,x
+	dex:dex
+	bpl	ball_move_1
+	rts
+
+light_set
+	lda	#80
+	sub	ball_x+1
+	spl:lda	#0
+	tax
+	lda	#96
+	sub	ball_y+1
+	spl:lda	#0
+
+	add	<light_lines
+	sta	light_set_2+1
+	lda	#0
+	adc	>light_lines
+	sta	light_set_2+2
+	ldy	#160
+light_set_1
+	dey
+light_set_2
+	mva	light_lines,y	light_ptrs,y-
+	stx	light_ptrs,y
+	bne	light_set_1
+	rts
+
+scroll_move
+	lda	clock
+	and	#3
+	eor	#$f
+	sta	^44
+	cmp	#$f
+	bcc	scroll_ret
+	inw	scroll_ptr
+	lda	scroll_ptr
+	cmp	<scroll_end
+	lda	scroll_ptr+1
+	sbc	>scroll_end
+	bcc	scroll_ret
+scroll_start
+	mwa	#scroll_text	scroll_ptr
+scroll_ret
+	rts
+
+bumpcode_create
+	mwa	#bumpmap	src
+	mwa	#bumpcode	dest
+	ldy	#0
+	jsr	bumpcode_create_frame
+	inw	dest
+	ldy	#24
+bumpcode_create_frame
+	mva	#37	cnt
+bumpcode_create_row
+	sty	row
+	ldx	#0
+bumpcode_create_byte
+	dec	cnt
+	bne	bumpcode_create_novscroltrick
+	ldy	#12
+	mva:rpl	bumpcode_create_vscroltrick,y	(dest),y-
+	lda	#13
+	add:sta	dest
+	scc:inc	dest+1
+	mva	#41	cnt
+bumpcode_create_novscroltrick
+
+	lda	(src),0
+:4	lsr	@
+	sta	hi
+	lda	(src),y
+	and	#$f
+	sta	lo
+
+	mva	#{ldy #}	(dest),y+
+	txa
+	asl	@
+	sta	col
+	adc	lo	; add
+	sub	hi
+	spl:lda	#0
+	sta	(dest),y+
+	mva	#{lda (),y}	(dest),y
+	ldy	#40
+	lda	(src),y
+:4	lsr	@
+	sub	hi
+	add	row
+	spl:lda	#0
+	asl	@
+:light_ptrs!=0	adc	#light_ptrs	; add
+	ldy	#3
+	sta	(dest),y+
+
+	mva	#{ldy #}	(dest),y
+	lda	#0
+	cpx	#39
+	bcs	bumpcode_create_rightmost
+	ldy	#1
+	lda	(src),y
+:4	lsr	@
+	sub	lo
+	sec
+bumpcode_create_rightmost
+	adc	col
+	spl:lda	#0
+	add	#96
+	ldy	#5
+	sta	(dest),y+
+	mva	#{eor (),y}	(dest),y
+	ldy	#40
+	lda	(src),y
+	and	#$f
+	sub	lo
+	add	row
+	spl:lda	#0
+	asl	@
+:light_ptrs!=0	adc	#light_ptrs	; add
+	ldy	#7
+	sta	(dest),y+
+
+	mva	#{sta screen}	(dest),y+
+	mva	src	(dest),y+
+	lda	src+1
+	eor	>bumpmap^screen
+	sta	(dest),y
+	inw	src
+	lda	#11
+	add:sta	dest
+	scc:inc	dest+1
+	inx
+	cpx	#40
+	jcc	bumpcode_create_byte
+	ldy	row
+	iny
+	cpy	#24
+	beq	bumpcode_create_rts
+	cpy	#48
+	jcc	bumpcode_create_row
+bumpcode_create_rts
+	mva	#{rts}	(dest),0
+	rts
+
+light_create
+	mva	<light	dest
+	lda	>light
+light_create_line
+	sta	dest+1
+	sub	>light
+	tax
+	lda	sqr,x
+	sta	y2
+	lda:tay	#0
+	sta:rne	(dest),y+
+	ldx	#15
+light_create_pixel
+	stx	col
+	txa
+	eor	#80
+	sta	hi_right
+	eor	#$ff
+	sec:adc	#2*80
+	sta	hi_left
+	add	#96
+	sta	lo_left
+	eor	#$ff
+	sec:adc	<2*176
+	sta	lo_right
+	ldy	#15
+	lda	sqr,x
+	add	y2
+	bcs	light_create_black
+	iny
+light_create_sqrt
+	dey
+	cmp	sqr,y
+	bcc	light_create_sqrt
+light_create_black
+	tya
+	eor	#$f
+	ldy	lo_left
+	sta	(dest),y
+	ldy	lo_right
+	sta	(dest),y
+:4	asl	@
+	ldy	hi_left
+	sta	(dest),y
+	ldy	hi_right
+	sta	(dest),y
+	ldx	col
+	dex
+	bpl	light_create_pixel
+	lda	dest+1
+	add	#1
+	cmp	>light+$1000
+	bcc	light_create_line
+	lda:tay	#0
+	sta:rne	light+$1000,y+
+	rts
+
+bumpcode_create_vscroltrick
+	sta	^4a
+	mva	#13	^45
+	mva	#3	^45
+
+sqr
+:16	dta	#*#
+
+light_lines
+:32*2	dta	16+>light
+:15*2	dta	16-#/2+>light
+:16*2	dta	#/2+>light
+:42*2	dta	16+>light
+
+	run	main
+	end
