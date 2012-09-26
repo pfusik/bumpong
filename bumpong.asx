@@ -40,7 +40,7 @@ scroll_text
 	dta	d"Design and programming by Piotr '0xF' Fusik             "
 	dta	d"Music by Lukasz 'X-Ray' Sychowicz                       "
 	dta	d'First presented at WAP-NIAK 2012                        '
-	dta	d'Greetings to:  Agenda, LaResistance, Tristesse, Mad Team, SSG, Lamers, Sword Soft, MEC, Slight, Rumun, Sikor, Lewis, XXL, Jakub Husak, Kaz, TDC, Ramos, Marok, Mono, Drac030, Innuendo, Jellonek, PG, Joy, Bob!k, Henryk, Grzybson, Stryker, Xeen, Cosi, Cobra, Jubanka, Pet, Yerzmyey, rest of Taquart!'
+	dta	d'Greetings to:  Agenda, LaResistance, Tristesse, Mad Team, SSG, Lamers, Sword Soft, MEC, Slight, New Generation, Rumun, Sikor, Lewis, XXL, Jakub Husak, Kaz, TDC, Ramos, Marok, Drac030, Innuendo, Jellonek, PG, Joy, Bob!k, Henryk, Grzybson, Stryker, Xeen, Cosi, Cobra, Jubanka, Pet, Yerzmyey, rest of Taquart!'
 scroll_end
 :48	dta	d' '
 dl 
@@ -70,7 +70,7 @@ main
 
 	mwa	#$2800	ball_x
 	mwa	#$3000	ball_y
-	mva	#$3f	ball_dx
+	mva	#$1f	ball_dx
 
 	jsr	ball_move
 	jsr	light_set
@@ -124,7 +124,7 @@ ball_bounce_x
 	bpl	ball_bounce_x_no
 	bmi	ball_bounce_x_yes	; jmp
 ball_bounce_x_right
-	cpx	#78
+	cpx	#76
 	bcc	ball_bounce_x_no
 ball_bounce_x_yes
 	eor	#$ff
@@ -141,7 +141,7 @@ ball_bounce_y
 	bpl	ball_bounce_y_no
 	bmi	ball_bounce_y_yes	; jmp
 ball_bounce_y_bottom
-	cpy	#92
+	cpy	#88
 	bcc	ball_bounce_y_no
 ball_bounce_y_yes
 	eor	#$ff
