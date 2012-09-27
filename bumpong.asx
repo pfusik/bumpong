@@ -1,8 +1,12 @@
-PADDLE_LEN	equ	14
-SCULPT_LEVEL	equ	8
+DEBUG	equ	0
+BALL_SPEED	equ	2
+PADDLE_LEN	equ	16
+SCULPT_LEVEL	equ	0
 PADDLE_POS	equ	[48-PADDLE_LEN]/2
 
 bumpcode_ptrs	equ	$3e00	; $f00
+bumpmap_line_lo	equ	$3d00
+bumpmap_line_hi	equ	$3d30
 bumpcode	equ	$4e00	; < $5500
 bumpcode2	equ	bumpcode+$2a6c
 light	equ	$a300	; $1100
@@ -12,7 +16,7 @@ clock	equ	20
 ball_x	equ	$38	; 2
 ball_y	equ	$3a	; 2
 ball_dx	equ	$3c
-ball_dy	equ	$3e
+ball_dy	equ	$3d
 light_ptrs	equ	$40	; 80*2
 
 src	equ	$e0	; 2
@@ -33,6 +37,7 @@ lo_left	equ	$ee
 lo_right	equ	$ef
 py	equ	$f0	; 2
 controllers	equ	$f2	; 2
+score_color	equ	$f4	; 2
 
 	org	$2c00
 bumpmap
@@ -57,9 +62,8 @@ scroll_end
 dl 
 	dta	$70,$70,$c6,a(status_line),$6f,a(screen),$0f
 :23	dta	$2f,$0f
-	dta	$52
-scroll_ptr
-	dta	a(scroll_text)
+scroll_dl
+	dta	$52,a(scroll_text)
 	dta	$41,a(dl)
 
 main
@@ -82,10 +86,17 @@ main
 
 	mwa	#$2800	ball_x
 	mwa	#$3000	ball_y
-	mva	#$1f	ball_dx
+	mva	#$40	ball_dx
+	mva	#0	ball_dy
 	mva	#PADDLE_POS	py
 	sta	py+1
 	jsr	sculpt_paddles
+	jsr	light_set
+	mwa	#0	score_color
+
+demo
+	mva	#$52	scroll_dl
+	mwa	#scroll_text	scroll_dl+1
 
 demo_loop
 	lda	#$70
@@ -93,15 +104,31 @@ demo_loop
 	lda	clock
 	lsr	@
 	bcc	demo_loop
+:DEBUG	mva	^4b	$600
 	lda	#0
 	jsr	sculpt_ball
+; lda ^4b
+; dta 2
+:DEBUG	mva	^4b	$601
 	jsr	paddle_move
+:DEBUG	mva	^4b	$606
 	jsr	ball_move
+:DEBUG	mva	^4b	$607
 	lda	#$70
 	jsr	sculpt_ball
+:DEBUG	mva	^4b	$608
 	jsr	light_set
+:DEBUG	mva	^4b	$609
 	jsr	scroll_move
-	jmp	demo_loop
+	lda	^1f
+	and	^10
+	and	^11
+	bne	demo_loop
+
+	mwa	#dl	scroll_dl+1
+	mva	#$41	scroll_dl
+; TODO
+	jmp	demo
 
 vblki
 	inc	clock
@@ -133,7 +160,7 @@ bumpcode_done
 	jmp	popa
 
 ball_move
-	ldy	#8
+	ldy	#BALL_SPEED
 ball_move_1
 	ldx	ball_x+1
 	lda	ball_dx
@@ -148,7 +175,11 @@ ball_bounce_x_yes
 	eor	#$ff
 	add	#1
 	sta	ball_dx
-	mvx	^2a	ball_dy
+ball_bounce_randomize
+	ldx	^2a
+	cpx	#$80	; overflows and escapes the top border!
+	beq	ball_bounce_randomize
+	stx	ball_dy
 ball_bounce_x_no
 	asl	@
 	ldx	#0
@@ -194,16 +225,15 @@ sculpt_ball
 	sta	row
 	ldx	#3
 sculpt_ball_line
-	lda	ball_x+1
-	sub	#1
-	lsr	@
-	sta	col
 	lda	sculpt_shape
 	and	sculpt_ball_masks,x
 	sta	sculpt_mask
 	lda	sculpt_shape
 	and	sculpt_ball_masks+1,x
 	sta	sculpt_mask+1
+	lda	ball_x+1
+	sub	#1
+	and	#$fe
 :3	jsr	sculpt_byte
 	dec	row
 	dex
@@ -258,10 +288,12 @@ paddle_domove
 	sty	py,x
 	dey:dey
 	sty	row
+:DEBUG	mva	^4b	$602,x
 :3	jsr	sculpt_paddle_row
 	lda	#PADDLE_LEN-3
 	add:sta	row
 :3	jsr	sculpt_paddle_row
+:DEBUG	mva	^4b	$604,x
 paddle_nodown
 	dex
 	bpl	paddle_move_player
@@ -281,7 +313,6 @@ sculpt_paddles_1
 	rts
 
 sculpt_paddle_row
-	mva	paddle_col,x	col
 	lda	row
 	sub	py,x
 	cmp	#PADDLE_LEN
@@ -293,54 +324,47 @@ sculpt_paddle_row
 	ldy	#0
 	scs:ldy	paddle_mask,x
 	sty	sculpt_mask+1
+	lda	paddle_col,x
 :2	jsr	sculpt_byte
 	inc	row
 	rts
 
-; col=0..39 row=0..47
+; a=0..78 row=0..47
 ; sculpt_mask  =%xxx-----
 ; sculpt_mask+1=%xx------
 sculpt_byte
-	lda	row
-	asl	@
-	asl	@
-	adc	row	; add
-	asl	@
-	rol	src+1
-	asl	@
-	rol	src+1
-	asl	@
-	rol	src+1
-	add	col
+	sta	col
+	lsr	@
+	ldy	row
+	adc	bumpmap_line_lo,y	; add
 	sta	src
 	sta	tmp
-	lda	src+1
-	and	#7
-	adc	>bumpmap
+	lda	#0
+	adc	bumpmap_line_hi,y
 	sta	src+1
 	adc	>bumpcode_ptrs/2-bumpmap	; add
 	asl	tmp
 	rol	@
 	sta	tmp+1
-	mva	(tmp),0+	dest
-	mva	(tmp),y	dest+1
+	ldy	#1
+	mva	(tmp),y-	dest+1
+	mva	(tmp),y	dest
 
 	lda	#SCULPT_LEVEL
-	asl	sculpt_mask
-	bcs	sculpt_hi
+	bit	sculpt_mask
+	bmi	sculpt_hi
 	lda	(src),y
 :4	lsr	@
 sculpt_hi
 	sta	hi
 	lda	#SCULPT_LEVEL
-	asl	sculpt_mask
-	bcs	sculpt_lo
+	bvs	sculpt_lo
 	lda	(src),y
 	and	#$f
 sculpt_lo
 	sta	lo
 
-	asl:adc	col
+	add	col
 	sub	hi
 	spl:lda	#0
 	ldy	#1
@@ -351,8 +375,9 @@ sculpt_lo
 	ldy	#40
 	lda	(src),y
 :4	lsr	@
+	sec
 sculpt_bottomhi
-	sub	hi
+	sbc	hi
 	add	row
 	spl:lda	#0
 	asl	@
@@ -360,9 +385,12 @@ sculpt_bottomhi
 	ldy	#3
 	sta	(dest),y
 
+	lda	sculpt_mask
+:2	asl	@
+	sta	sculpt_mask
+	asl	@
 	lda	#SCULPT_LEVEL
-	bit	sculpt_mask
-	bmi	sculpt_righthi
+	bcs	sculpt_righthi
 :SCULPT_LEVEL!=0	lda	#0
 	ldy	col
 	cpy	#78
@@ -370,8 +398,9 @@ sculpt_bottomhi
 	ldy	#1
 	lda	(src),y
 :4	lsr	@
+	sec
 sculpt_righthi
-	sub	lo
+	sbc	lo	; sub
 sculpt_rightmost
 	sec
 	adc	col
@@ -379,21 +408,23 @@ sculpt_rightmost
 	add	#96
 	ldy	#5
 	sta	(dest),y
-	lda	#0
+	lda	#SCULPT_LEVEL
 	asl	sculpt_mask+1
 	bcs	sculpt_bottomlo
 	ldy	#40
 	lda	(src),y
 	and	#$f
+	sec
 sculpt_bottomlo
-	sub	lo
+	sbc	lo	; sub
 	add	row
 	spl:lda	#0
 	asl	@
 :light_ptrs!=0	adc	#light_ptrs	; add
 	ldy	#7
 	sta	(dest),y
-	lsr:inc	col
+	lda	col
+	add	#2
 	rts
 
 light_set
@@ -424,14 +455,14 @@ scroll_move
 	sta	^44
 	cmp	#$f
 	bcc	scroll_ret
-	inw	scroll_ptr
-	lda	scroll_ptr
+	inw	scroll_dl+1
+	lda	scroll_dl+1
 	cmp	<scroll_end
-	lda	scroll_ptr+1
+	lda	scroll_dl+2
 	sbc	>scroll_end
 	bcc	scroll_ret
 scroll_start
-	mwa	#scroll_text	scroll_ptr
+	mwa	#scroll_text	scroll_dl+1
 scroll_ret
 	rts
 
@@ -443,9 +474,11 @@ bumpcode_create
 	inw	dest
 	ldy	#24
 bumpcode_create_frame
-	mva	#37	cnt
+	mva	#38	cnt
 bumpcode_create_row
 	sty	row
+	mva	src	bumpmap_line_lo,y
+	mva	src+1	bumpmap_line_hi,y
 	ldx	#0
 bumpcode_create_byte
 	dec	cnt
@@ -606,7 +639,7 @@ bumpcode_create_vscroltrick
 	mva	#3	^45
 
 sculpt_ball_masks	dta	0,$ff,$ff,$ff,0
-paddle_col	dta	0,38
+paddle_col	dta	0,76
 paddle_mask	dta	$e0,$30
 
 sqr
