@@ -278,7 +278,7 @@ ball_move_1
 	mva	#1	game_state
 	bcs	ball_bounce_x_no	; jmp
 ball_bounce_x_right
-	cpx	#75
+	cpx	#76
 	bcc	ball_bounce_x_no
 	bit	game_state
 	bpl	ball_bounce_x_yes
@@ -384,7 +384,7 @@ paddle1_nokey
 	sta	controllers+1
 	lda	^30
 :4	lsr	@
-	and:sta	controllers
+	and:sta	controllers+1
 
 	ldx	#1
 paddle_move_player
