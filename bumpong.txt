@@ -1,12 +1,14 @@
 *** BUMPONG ***
 Game for two players
+Play classic pong with
+the bump mapping effect!
 
 First presented at WAP-NIAK 2012
 Warsaw, Poland
 
 Requires: 8-bit Atari (400/800/XL/XE)
-PAL version with at least 48k RAM
-and a good GTIA chip
+with 48k RAM and a good GTIA chip
+PAL only - sorry!
 Recommended: two joysticks
 
 Design and programming

@@ -3,10 +3,11 @@ BALL_SPEED	equ	2
 PADDLE_LEN	equ	16
 SCULPT_LEVEL	equ	0
 PADDLE_POS	equ	[48-PADDLE_LEN]/2
+EXIT_TO_DOS	equ	1	; not safe because we destroy page zero
 
 bumpcode_ptrs	equ	$3e00	; $f00
-bumpmap_line_lo	equ	$3d00
-bumpmap_line_hi	equ	$3d30
+bumpmap_line_lo	equ	$4d00
+bumpmap_line_hi	equ	$4d30
 bumpcode	equ	$4e00	; < $5500
 bumpcode2	equ	bumpcode+$2a6c
 light	equ	$a300	; $1100
@@ -37,9 +38,10 @@ lo_left	equ	$ee
 lo_right	equ	$ef
 py	equ	$f0	; 2
 controllers	equ	$f2	; 2
-score_color	equ	$f4	; 2
+score_color	equ	$f4
+game_state	equ	$f6	; 0=player1 scores, 1=player2 scores, 2=demo, -1=play
 
-	org	$2c00
+	org	$2a00
 bumpmap
 ;:1960	dta	$ff
 	ins	'bumpmap.gr9'
@@ -61,7 +63,8 @@ scroll_end
 	ert	[*^scroll_text]>>12!=0
 dl 
 	dta	$70,$70,$c6,a(status_line),$6f,a(screen),$0f
-:23	dta	$2f,$0f
+:22	dta	$2f,$0f
+	dta	$2f,$8f
 scroll_dl
 	dta	$52,a(scroll_text)
 	dta	$41,a(dl)
@@ -69,14 +72,19 @@ scroll_dl
 main
 	jsr	bumpcode_create
 	jsr	light_create
+	mva	#PADDLE_POS	py
+	sta	py+1
+	jsr	sculpt_paddles
 
 	sei
-	lda	20
-	cmp:req	20
-	mwa	#vblki	$222
+	jsr	wait
+	ift	EXIT_TO_DOS
+	lda:pha	$201
+	lda:pha	$200
+	eif
 	mwa	#dli	$200
 	mva	#$22	^40
-	mva	#$c0	^4e
+	mva	#$80	^4e
 	mwa	#dl	^42
 	ldx	#29
 	lda	#0
@@ -88,38 +96,35 @@ main
 	mwa	#$3000	ball_y
 	mva	#$40	ball_dx
 	mva	#0	ball_dy
-	mva	#PADDLE_POS	py
-	sta	py+1
-	jsr	sculpt_paddles
 	jsr	light_set
-	mwa	#0	score_color
+	mva	#0	score_color
 
 demo
+	mva	#2	game_state
 	mva	#$52	scroll_dl
 	mwa	#scroll_text	scroll_dl+1
 
 demo_loop
-	lda	#$70
-	cmp:rne	^4b
-	lda	clock
-	lsr	@
-	bcc	demo_loop
-:DEBUG	mva	^4b	$600
-	lda	#0
-	jsr	sculpt_ball
-; lda ^4b
-; dta 2
-:DEBUG	mva	^4b	$601
-	jsr	paddle_move
-:DEBUG	mva	^4b	$606
-	jsr	ball_move
-:DEBUG	mva	^4b	$607
-	lda	#$70
-	jsr	sculpt_ball
-:DEBUG	mva	^4b	$608
-	jsr	light_set
-:DEBUG	mva	^4b	$609
+	jsr	wait
 	jsr	scroll_move
+
+	ift	EXIT_TO_DOS
+	lda	#4
+	bit	^2f
+	bne	no_dos
+	lda	^29
+	and	#$3f
+	cmp	#$1c
+	bne	no_dos
+	mva	#0	^40
+	mva	#$40	^4e
+	pla:sta	$200
+	pla:sta	$201
+	cli
+	rts
+no_dos
+	eif
+
 	lda	^1f
 	and	^10
 	and	^11
@@ -127,18 +132,80 @@ demo_loop
 
 	mwa	#dl	scroll_dl+1
 	mva	#$41	scroll_dl
-; TODO
+
+	ldx	score_color
+	beq	score_hidden
+start_game_1
+	jsr	wait
+	jsr	ball_gocenter
+	dex
+	stx	^16
+	stx	^19
+	bne	start_game_1
+score_hidden
+	mva	#$10	status_line
+	mva	#0	status_line+1
+	sta	status_line+18
+	mva	#$d0	status_line+19
+start_game_2
+	jsr	wait
+	jsr	ball_gocenter
+	cpx	#$f
+	bcs	start_game_21
+	inx
+	stx	^16
+	stx	^19
+start_game_21
+	lda	ball_dx
+	ora	ball_dy
+	bne	start_game_2
+
+	lda	^2a
+	and	#$80
+	ora	#$40
+	sta	ball_dx
+	lda	^2a
+	lsr	@
+	sub	#$40
+	sta	ball_dy
+next_ball
+	mva	#-1	game_state
+
+game_loop
+	ldx:rmi	game_state
+
+	ldy	mul19,x
+	lda	#1
+	add:sta	status_line,y
+	and	#$3f
+	cmp	#$1a
+	bcc	next_ball
+
+	txa
+	bne	player2_won
+	mvy	#$11	status_line
+	dey:sty	status_line+1
+	jmp	demo
+player2_won
+	mvy	#$d1	status_line+18
+	dey:sty	status_line+19
 	jmp	demo
 
-vblki
-	inc	clock
-popa
-	pla:tay
-	pla:tax
+wait
+	lda	clock
+	cmp:req	clock
+	rts
+
+dli_bottom
+	lda	#1
+	sta	^4a
+	sta	^1b
 	pla:rti
 
 dli
 	pha
+	bit	^4b
+	bvs	dli_bottom
 	txa:pha
 	tya:pha
 	sta	^4a
@@ -147,17 +214,50 @@ dli
 	sta	^1b
 	lda	clock
 	lsr	@
-	sta	^4a
 	bcs	bumpcode_bottom
 	jsr	bumpcode
+	jsr	paddle_move
 	jmp	bumpcode_done
+
 bumpcode_bottom
 	jsr	bumpcode2
-bumpcode_done
+:DEBUG	mva	^4b	$600
+	lda	#0
+	jsr	sculpt_ball
+:DEBUG	mva	^4b	$606
+	jsr	ball_move
+:DEBUG	mva	^4b	$607
 	lda	#$70
-	cmp:rne	^4b
-	mva	#1	^1b
-	jmp	popa
+	jsr	sculpt_ball
+:DEBUG	mva	^4b	$608
+	jsr	light_set
+:DEBUG	mva	^4b	$609
+bumpcode_done
+	inc	clock
+	pla:tay
+	pla:tax
+	pla:rti
+
+ball_gocenter
+	lda	#$28
+	sub	ball_x+1
+	ift	1
+	asl	@
+	els
+	ora	#$7f
+	spl:eor	#$70
+	eif
+	sta	ball_dx
+	lda	#$30
+	sub	ball_y+1
+	ift	1
+	asl	@
+	els
+	ora	#$7f
+	spl:eor	#$70
+	eif
+	sta	ball_dy
+	rts
 
 ball_move
 	ldy	#BALL_SPEED
@@ -167,20 +267,38 @@ ball_move_1
 	bpl	ball_bounce_x_right
 	cpx	#3
 	bpl	ball_bounce_x_no
-	bmi	ball_bounce_x_yes	; jmp
+	bit	game_state
+	bpl	ball_bounce_x_yes
+	lda	ball_y+1
+	lsr	@
+	sub	py
+	add	#2
+	cmp	#PADDLE_LEN+2
+	bcc	ball_bounce_x_yes
+	mva	#1	game_state
+	bcs	ball_bounce_x_no	; jmp
 ball_bounce_x_right
 	cpx	#75
 	bcc	ball_bounce_x_no
+	bit	game_state
+	bpl	ball_bounce_x_yes
+	lda	ball_y+1
+	lsr	@
+	sub	py+1
+	add	#2
+	cmp	#PADDLE_LEN+2
+	bcc	ball_bounce_x_yes
+	mva	#0	game_state
 ball_bounce_x_yes
-	eor	#$ff
-	add	#1
-	sta	ball_dx
+	lda	#0
+	sub:sta	ball_dx
 ball_bounce_randomize
 	ldx	^2a
 	cpx	#$80	; overflows and escapes the top border!
 	beq	ball_bounce_randomize
 	stx	ball_dy
 ball_bounce_x_no
+	lda	ball_dx
 	asl	@
 	ldx	#0
 	scc:dex
@@ -196,7 +314,7 @@ ball_bounce_y
 	bpl	ball_bounce_y_no
 	bmi	ball_bounce_y_yes	; jmp
 ball_bounce_y_bottom
-	cpx	#86
+	cpx	#88
 	bcc	ball_bounce_y_no
 ball_bounce_y_yes
 	eor	#$ff
@@ -211,7 +329,7 @@ ball_bounce_y_no
 	adc:sta	ball_y+1
 
 	dey
-	bne	ball_move_1
+	jne	ball_move_1
 	rts
 
 sculpt_ball
@@ -281,7 +399,7 @@ paddle_move_player
 paddle_noup
 	cmp	#1
 	bne	paddle_nodown
-	cpy	#45-PADDLE_LEN
+	cpy	#46-PADDLE_LEN
 	bcs	paddle_nodown
 	iny
 paddle_domove
@@ -431,7 +549,7 @@ light_set
 	lda	#80
 	sub	ball_x+1
 	tax
-	lda	#96
+	lda	#94
 	sub	ball_y+1
 
 	add	<light_lines
@@ -474,7 +592,7 @@ bumpcode_create
 	inw	dest
 	ldy	#24
 bumpcode_create_frame
-	mva	#38	cnt
+	mva	#40	cnt
 bumpcode_create_row
 	sty	row
 	mva	src	bumpmap_line_lo,y
@@ -641,6 +759,7 @@ bumpcode_create_vscroltrick
 sculpt_ball_masks	dta	0,$ff,$ff,$ff,0
 paddle_col	dta	0,76
 paddle_mask	dta	$e0,$30
+mul19	dta	0,19
 
 sqr
 :16	dta	#*#
