@@ -77,6 +77,8 @@ main
 	mva	#$40	ball_dx
 	mva	#0	ball_dy
 	jsr	light_set
+	jsr	bumpcode	; avoid trash on screen
+	jsr	bumpcode2
 
 	ldx	#29
 	lda:rne	^4b
@@ -203,17 +205,21 @@ dli
 	sta	^1b
 	lda	clock
 	lsr	@
-	bcs	bumpcode_bottom
+	bcs	second_frame
 	jsr	bumpcode
+	ldx	#1
 	jsr	paddle_move
 	jmp	dli_done
 
-bumpcode_bottom
+second_frame
 	jsr	bumpcode2
 	jsr	ball_move
 :DEBUG	mva	^4b	$608
 	jsr	light_set
 :DEBUG	mva	^4b	$609
+	jsr	get_controllers
+	ldx	#0
+	jsr	paddle_move
 dli_done
 	inc	clock
 	pla:tay
@@ -302,7 +308,7 @@ ball_bounce_y_no
 	jne	ball_move_1
 	rts
 
-paddle_move
+get_controllers
 	ldx	#3
 	lda	#4
 	bit	^2f
@@ -329,9 +335,9 @@ paddle1_nokey
 	lda	^30
 :4	lsr	@
 	and:sta	controllers+1
+	rts
 
-	ldx	#1
-paddle_move_player
+paddle_move
 	ldy	py,x
 	lda	controllers,x
 	cmp	#2
@@ -357,8 +363,6 @@ paddle_domove
 :3	jsr	sculpt_paddle_row
 :DEBUG	mva	^4b	$604,x
 paddle_nodown
-	dex
-	bpl	paddle_move_player
 	rts
 
 sculpt_paddles
