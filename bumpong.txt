@@ -9,7 +9,7 @@ Warsaw, Poland
 Requires: 8-bit Atari (400/800/XL/XE)
 with 48k RAM and a good GTIA chip
 Game is PAL/NTSC compatible
-Recommended: two joysticks
+Recommended: two joysticks, stereo
 
 Design and programming
 by Piotr '0xF' Fusik <fox@scene.pl>
