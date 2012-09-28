@@ -5,43 +5,41 @@ SCULPT_LEVEL	equ	0
 PADDLE_POS	equ	[48-PADDLE_LEN]/2
 EXIT_TO_DOS	equ	1	; not safe because we destroy page zero
 
-bumpcode_ptrs	equ	$3e00	; $f00
-bumpmap_line_lo	equ	$4d00
-bumpmap_line_hi	equ	$4d30
-bumpcode	equ	$4e00	; < $5500
+light	equ	$0f00	; $3100
+bumpcode_ptrs	equ	$5400	; $f00
+bumpcode	equ	$6300	; < $5500
 bumpcode2	equ	bumpcode+$2a6c
-light	equ	$a300	; $1100
-screen	equ	$b400	; $780
+screen	equ	$b800	; $780
+bumpmap_line_lo	equ	$bf80
+bumpmap_line_hi	equ	$bfb0
 
 clock	equ	20
-ball_x	equ	$38	; 2
-ball_y	equ	$3a	; 2
-ball_dx	equ	$3c
-ball_dy	equ	$3d
-light_ptrs	equ	$40	; 80*2
+ball_x	equ	$18	; 2
+ball_y	equ	$1a	; 2
+ball_dx	equ	$1c
+ball_dy	equ	$1d
+light_ptrs	equ	$20	; 100*2
 
-src	equ	$e0	; 2
-dest	equ	$e2	; 2
+src	equ	$e8	; 2
+dest	equ	$ea	; 2
 
-col	equ	$e4
-row	equ	$e5
-hi	equ	$e6
-lo	equ	$e7
-tmp	equ	$e8	; 2
-sculpt_mask	equ	$ea	; 2
-sculpt_shape	equ	$ec
-cnt	equ	$ea
-y2	equ	$eb
-hi_left	equ	$ec
-hi_right	equ	$ed
-lo_left	equ	$ee
-lo_right	equ	$ef
-py	equ	$f0	; 2
-controllers	equ	$f2	; 2
-score_color	equ	$f4
-game_state	equ	$f6	; 0=player1 scores, 1=player2 scores, 2=demo, -1=play
+col	equ	$ec
+row	equ	$ed
+hi	equ	$ee
+lo	equ	$ef
+tmp	equ	$f0	; 2
+sculpt_mask	equ	$f2	; 2
+sculpt_shape	equ	$f4
+cnt	equ	$f2
+y2	equ	$f3
+left	equ	$f4
+right	equ	$f5
+py	equ	$f8	; 2
+controllers	equ	$fa	; 2
+score_color	equ	$fc
+game_state	equ	$fe	; 0=player1 scores, 1=player2 scores, 2=demo, -1=play
 
-	org	$2a00
+	org	$4000
 bumpmap
 ;:1960	dta	$ff
 	ins	'bumpmap.gr9'
@@ -70,27 +68,19 @@ scroll_dl
 	dta	$41,a(dl)
 
 main
+	ift	EXIT_TO_DOS
+	lda:pha	$201
+	lda:pha	$200
+	eif
+	mva	#1	$244
+	sei
+	mva	#0	^4e
+	sta	^40
 	jsr	bumpcode_create
 	jsr	light_create
 	mva	#PADDLE_POS	py
 	sta	py+1
 	jsr	sculpt_paddles
-
-	sei
-	jsr	wait
-	ift	EXIT_TO_DOS
-	lda:pha	$201
-	lda:pha	$200
-	eif
-	mwa	#dli	$200
-	mva	#$22	^40
-	mva	#$80	^4e
-	mwa	#dl	^42
-	ldx	#29
-	lda	#0
-	sta:rpl	^00,x-
-	sta	clock
-	mva	#$f	^17
 
 	mwa	#$2800	ball_x
 	mwa	#$3000	ball_y
@@ -98,6 +88,16 @@ main
 	mva	#0	ball_dy
 	jsr	light_set
 	mva	#0	score_color
+
+	ldx	#29
+	lda:rne	^4b
+	sta:rpl	^00,x-
+	sta	clock
+	mwa	#dli	$200
+	mva	#$22	^40
+	mva	#$80	^4e
+	mwa	#dl	^42
+	mva	#$f	^17
 
 demo
 	mva	#2	game_state
@@ -241,21 +241,25 @@ bumpcode_done
 ball_gocenter
 	lda	#$28
 	sub	ball_x+1
-	ift	1
+ ift	0
 	asl	@
-	els
+ els
+	beq	ball_gocenter_x
 	ora	#$7f
 	spl:eor	#$70
-	eif
+ball_gocenter_x
+ eif
 	sta	ball_dx
 	lda	#$30
 	sub	ball_y+1
-	ift	1
+ ift	0
 	asl	@
-	els
+ els
+	beq	ball_gocenter_y
 	ora	#$7f
 	spl:eor	#$70
-	eif
+ball_gocenter_y
+ eif
 	sta	ball_dy
 	rts
 
@@ -497,9 +501,7 @@ sculpt_lo
 sculpt_bottomhi
 	sbc	hi
 	add	row
-	spl:lda	#0
-	asl	@
-:light_ptrs!=0	adc	#light_ptrs	; add
+	tay:lda	dy2light_ptrs,y
 	ldy	#3
 	sta	(dest),y
 
@@ -523,7 +525,6 @@ sculpt_rightmost
 	sec
 	adc	col
 	spl:lda	#0
-	add	#96
 	ldy	#5
 	sta	(dest),y
 	lda	#SCULPT_LEVEL
@@ -536,28 +537,28 @@ sculpt_rightmost
 sculpt_bottomlo
 	sbc	lo	; sub
 	add	row
-	spl:lda	#0
-	asl	@
-:light_ptrs!=0	adc	#light_ptrs	; add
+	tay:lda	dy2light_ptrs,y
+	add	#2
 	ldy	#7
 	sta	(dest),y
 	lda	col
-	add	#2
+	adc	#2	; add
 	rts
 
 light_set
-	lda	#80
+	lda	#128
 	sub	ball_x+1
 	tax
 	lda	#94
 	sub	ball_y+1
-
+	and	#$fe
+	asl	@
 	add	<light_lines
 	sta	light_set_2+1
 	lda	#0
 	adc	>light_lines
 	sta	light_set_2+2
-	ldy	#160
+	ldy	#200
 light_set_1
 	dey
 light_set_2
@@ -630,9 +631,7 @@ bumpcode_create_novscroltrick
 :4	lsr	@
 	sub	hi
 	add	row
-	spl:lda	#0
-	asl	@
-:light_ptrs!=0	adc	#light_ptrs	; add
+	tay:lda	dy2light_ptrs,y
 	ldy	#3
 	sta	(dest),y+
 
@@ -648,7 +647,6 @@ bumpcode_create_novscroltrick
 bumpcode_create_rightmost
 	adc	col
 	spl:lda	#0
-	add	#96
 	ldy	#5
 	sta	(dest),y+
 	mva	#{eor (),y}	(dest),y
@@ -657,9 +655,8 @@ bumpcode_create_rightmost
 	and	#$f
 	sub	lo
 	add	row
-	spl:lda	#0
-	asl	@
-:light_ptrs!=0	adc	#light_ptrs	; add
+	tay:lda	dy2light_ptrs,y
+	add	#2
 	ldy	#7
 	sta	(dest),y+
 
@@ -667,7 +664,7 @@ bumpcode_create_rightmost
 	mva	src	(dest),y+
 	sta	tmp
 	lda	src+1
-	add	>screen-bumpmap
+	adc	>screen-bumpmap	; add
 	sta	(dest),y
 	add	>bumpcode_ptrs/2-screen
 	ert	[bumpcode_ptrs&$1ff]!=0
@@ -696,59 +693,56 @@ bumpcode_create_rts
 
 light_create
 	mva	<light	dest
+	sta	tmp
 	lda	>light
 light_create_line
 	sta	dest+1
-	sub	>light
+	add	#1
+	sta	tmp+1
+	sub	>light+$100
+	lsr	@
 	tax
 	lda	sqr,x
 	sta	y2
 	lda:tay	#0
-	sta:rne	(dest),y+
-	ldx	#15
+light_clear
+	sta	(dest),y
+	sta	(tmp),y
+	iny:bne	light_clear
+	ldx	#23
 light_create_pixel
-	stx	col
-	txa
-	eor	#80
-	sta	hi_right
-	eor	#$ff
-	sec:adc	#2*80
-	sta	hi_left
-	add	#96
-	sta	lo_left
-	eor	#$ff
-	sec:adc	<2*176
-	sta	lo_right
-	ldy	#15
 	lda	sqr,x
 	add	y2
 	bcs	light_create_black
-	iny
+	ldy	#24
 light_create_sqrt
 	dey
 	cmp	sqr,y
 	bcc	light_create_sqrt
-light_create_black
-	tya
-	eor	#$f
-	ldy	lo_left
-	sta	(dest),y
-	ldy	lo_right
-	sta	(dest),y
+	txa
+	eor	#$80
+	sta	right
+	eor	#$ff
+	add	#1
+	sta	left
+	lda	dist2light,y
+	ldy	left
+	sta	(tmp),y
+	ldy	right
+	sta	(tmp),y
 :4	asl	@
-	ldy	hi_left
 	sta	(dest),y
-	ldy	hi_right
+	ldy	left
 	sta	(dest),y
-	ldx	col
+light_create_black
 	dex
 	bpl	light_create_pixel
 	lda	dest+1
-	add	#1
-	cmp	>light+$1000
+	add	#2
+	cmp	>light+$3000
 	bcc	light_create_line
 	lda:tay	#0
-	sta:rne	light+$1000,y+
+	sta:rne	light+$3000,y+
 	rts
 
 bumpcode_create_vscroltrick
@@ -762,13 +756,21 @@ paddle_mask	dta	$e0,$30
 mul19	dta	0,19
 
 sqr
-:16	dta	#*#
+:23	dta	#*#/2
+	dta	255
+dist2light
+:24	dta	15-#*2/3
 
 light_lines
-:32*2	dta	16+>light
-:15*2	dta	16-#/2+>light
-:16*2	dta	#/2+>light
-:42*2	dta	16+>light
+:24*4	dta	48+>light
+:23	dta	46-2*#+>light,46-2*#+>light,47-2*#+>light,47-2*#+>light
+:24*2	dta	#+>light,#+>light
+:28*4	dta	48+>light
+
+dy2light_ptrs
+:49	dta	light_ptrs+4*#
+:104	dta	light_ptrs+4*49
+:103	dta	light_ptrs
 
 	ert	*>bumpcode_ptrs
 
