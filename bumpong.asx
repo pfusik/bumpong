@@ -13,29 +13,30 @@ bumpmap_line_lo	equ	$bf80
 bumpmap_line_hi	equ	$bfb0
 
 clock	equ	20
+py	equ	$16	; 2
 ball_x	equ	$18	; 2
 ball_y	equ	$1a	; 2
 ball_dx	equ	$1c
 ball_dy	equ	$1d
+controllers	equ	$1e	; 2
 light_ptrs	equ	$20	; 100*2
 
 src	equ	$e8	; 2
 dest	equ	$ea	; 2
-
-col	equ	$ec
-row	equ	$ed
-hi	equ	$ee
-lo	equ	$ef
-tmp	equ	$f0	; 2
+tmp	equ	$ec	; 2
+col	equ	$ee
+row	equ	$ef
+hi	equ	$f0
+lo	equ	$f1
 sculpt_mask	equ	$f2	; 2
-cnt	equ	$f2
-y2	equ	$f3
-left	equ	$f4
-right	equ	$f5
-py	equ	$f8	; 2
-controllers	equ	$fa	; 2
+cnt	equ	$f2	; init only
+y2	equ	$f2	; init only
 
 	org	$4000
+dy2light_ptrs
+:49	dta	light_ptrs+4*#
+:104	dta	light_ptrs+4*49
+:103	dta	light_ptrs
 bumpmap
 ;:1960	dta	$ff
 	ins	'bumpmap.gr9'
@@ -68,6 +69,9 @@ main
 	sei
 	mva	#0	^4e
 	sta	^40
+	ldx	#29
+	sta:rpl	^00,x-
+	sta	clock
 	jsr	bumpcode_create
 	jsr	light_create
 	mva	#PADDLE_POS	py
@@ -79,14 +83,12 @@ main
 	jsr	light_set
 	jsr	bumpcode	; avoid trash on screen
 	jsr	bumpcode2
+	jsr	get_controllers
 
-	ldx	#29
 	lda:rne	^4b
-	sta:rpl	^00,x-
-	sta	clock
 	mwa	#dli	$200
-	mva	#$22	^40
 	mva	#$80	^4e
+	mva	#$22	^40
 	mwa	#dl	^42
 	mva	#$f	^17
 
@@ -637,22 +639,23 @@ bumpcode_create_rts
 	rts
 
 light_create
-	mva	<light	dest
-	sta	tmp
 	lda	>light
 light_create_line
-	sta	dest+1
+	sta	light_create_hi0+2
+	sta	light_create_hi1+2
+	sta	light_create_hi2+2
 	add	#1
-	sta	tmp+1
+	sta	light_create_lo0+2
+	sta	light_create_lo1+2
+	sta	light_create_lo2+2
 	sub	>light+$100
 	lsr	@
 	tax
-	lda	sqr,x
-	sta	y2
+	mva	sqr,x	y2
 	lda:tay	#0
 light_clear
-	sta	(dest),y
-	sta	(tmp),y
+light_create_hi0	sta	$8000,y
+light_create_lo0	sta	$8000,y
 	iny:bne	light_clear
 	ldx	#23
 light_create_pixel
@@ -664,25 +667,17 @@ light_create_sqrt
 	dey
 	cmp	sqr,y
 	bcc	light_create_sqrt
-	txa
-	eor	#$80
-	sta	right
-	eor	#$ff
-	add	#1
-	sta	left
 	lda	dist2light,y
-	ldy	left
-	sta	(tmp),y
-	ldy	right
-	sta	(tmp),y
+	ldy	sub128r,x
+light_create_lo1	sta	$8080,x
+light_create_lo2	sta	$8000,y
 :4	asl	@
-	sta	(dest),y
-	ldy	left
-	sta	(dest),y
+light_create_hi1	sta	$8080,x
+light_create_hi2	sta	$8000,y
 light_create_black
 	dex
 	bpl	light_create_pixel
-	lda	dest+1
+	lda	light_create_hi0+2
 	add	#2
 	cmp	>light+$3000
 	bcc	light_create_line
@@ -704,17 +699,14 @@ sqr
 	dta	255
 dist2light
 :24	dta	15-#*2/3
+sub128r
+:24	dta	128-#
 
 light_lines
 :24*4	dta	48+>light
 :23	dta	46-2*#+>light,46-2*#+>light,47-2*#+>light,47-2*#+>light
 :24*2	dta	#+>light,#+>light
 :28*4	dta	48+>light
-
-dy2light_ptrs
-:49	dta	light_ptrs+4*#
-:104	dta	light_ptrs+4*49
-:103	dta	light_ptrs
 
 	ert	*>bumpcode_ptrs
 
