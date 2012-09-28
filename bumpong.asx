@@ -1,7 +1,9 @@
 SOUND	equ	1
 DEBUG	equ	0
-BALL_SPEED	equ	2
-PADDLE_LEN	equ	16
+PADDLE_LEN	equ	12
+BALL_SPEED	equ	$50
+BALL_FACTOR	equ	2
+SCORE_SPEEDUP	equ	5
 SCULPT_LEVEL	equ	0
 PADDLE_POS	equ	[48-PADDLE_LEN]/2
 
@@ -80,7 +82,7 @@ main
 	sta	py+1
 	jsr	sculpt_paddles
 	jsr	ball_center
-	mva	#$40	ball_dx
+	mva	#BALL_SPEED	ball_dx
 	mva	#0	ball_dy
 	jsr	light_set
 	jsr	bumpcode	; avoid trash on screen
@@ -122,13 +124,12 @@ demo_loop
 	sta	status_line+18
 	mva	#$d0	status_line+19
 	jsr	show_score
-	lda	^2a
-	and	#$80
-	ora	#$40
-	sta	ball_dx
+	ldx	#BALL_SPEED
 	lda	^2a
 	lsr	@
+	scc:ldx	#-BALL_SPEED
 	sub	#$40
+	stx	ball_dx
 	sta	ball_dy
 
 game_loop
@@ -148,6 +149,21 @@ game_loop
 	jsr	show_score
 	lda	#79
 	cmp:rcc	ball_x+1
+	ift	SCORE_SPEEDUP
+; max score => ball speed
+	lda	status_line+19
+	and	#$3f
+	cmp	status_line
+	scs:lda	status_line
+	tax
+	lda	score2dx-$10,x
+	bit	ball_dx
+	bpl	speedup_ok
+	eor	#$ff
+	add	#1
+speedup_ok
+	sta	ball_dx
+	eif
 	jmp	game_loop
 
 game_over
@@ -239,7 +255,7 @@ ball_center
 	rts
 
 ball_move
-	ldy	#BALL_SPEED
+	ldy	#BALL_FACTOR
 ball_move_1
 	ldx	ball_x+1
 	lda	ball_dx
@@ -788,6 +804,11 @@ stereo	dta	0
 paddle_col	dta	0,76
 paddle_mask	dta	$e0,$30
 mul19	dta	0,19
+	ift	SCORE_SPEEDUP
+score2dx
+:10	dta	BALL_SPEED+SCORE_SPEEDUP*#
+	ert	BALL_SPEED+SCORE_SPEEDUP*9>$7f
+	eif
 
 sqr
 :23	dta	#*#/2
