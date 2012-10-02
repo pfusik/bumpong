@@ -11,8 +11,7 @@ Requirements
 The game requires 48 kilobytes of RAM and a good GTIA chip.
 Bumpong runs on PAL and NTSC computers.
 Joysticks are recommended, but you can play with keyboard.
-If you have a stereo (second POKEY) upgrade,
-you will hear sounds from the left and right.
+If you have a stereo (second POKEY) upgrade, you will hear surround sounds.
 
 Regarding the "good GTIA":
 It is unusual for an 8-bit Atari game to use a GTIA graphics mode.
@@ -22,10 +21,18 @@ displaying GTIA modes.
 Bumpong doesn't detect the graphics chip (a patch is welcome),
 so if you have a wrong chip you will see something ugly.
 
+If you have no real Atari computer, use an emulator:
+[Atari800Win PLus](http://www.atari.org.pl/PLus/index_us.htm),
+[Altirra](http://www.virtualdub.org/altirra.html)
+or [Atari800](http://atari800.sourceforge.net/).
+You will need to configure the ROM images (separate download)
+and the joysticks (which can be mapped to any PC keys).
+In emulators, Start/Select/Option keys are usually mapped to F2, F3 and F4.
+
 Gameplay
 --------
 
-Bumpong is [pong](http://en.wikipedia.org/wiki/Pong) clone for two players.
+Bumpong is [Pong](http://en.wikipedia.org/wiki/Pong) clone for two players.
 The "ball" is the center of the light.
 Use joysticks or keyboard to move the paddles:
 * left paddle: joystick 1 or up/down arrow keys
