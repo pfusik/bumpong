@@ -14,6 +14,6 @@ bumpong.doc: bumpong.txt
 	perl -pl0233 -e "y/\xd//d" $< >$@
 
 clean:
-	rm bumpong.xex bumpong.obx bumpmap.gr9 bumpong.doc
+	rm bumpong.xex bumpong.obx bumpong.lst bumpmap.gr9 bumpong.doc
 
 .DELETE_ON_ERROR:
