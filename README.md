@@ -70,3 +70,9 @@ Credits
 -------
 
 Game idea, design and programming by Piotr Fusik.
+
+Links
+-----
+
+* [Download Bumpong](https://github.com/downloads/pfusik/bumpong/bumpong.zip)
+* [Comment and vote](http://pouet.net/prod.php?which=60567)
